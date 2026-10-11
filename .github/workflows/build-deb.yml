@@ -62,12 +62,12 @@ jobs:
           if not source_archives and old_source_archives:
               print('::error::This workflow requires OBSBridge 0.2.1 nonblocking-receiver source. Upload the new source ZIP; older ZIPs do not have the latest transport and diagnostic changes.')
               raise SystemExit(1)
-          preferred = root / 'OBSBridge-source-0.2.1.zip'
+          preferred = root / 'OBSBridge-source-0.2.1-lf-fix.zip'
           archive = preferred if preferred in source_archives else None
           if archive is None and len(source_archives) == 1:
               archive = source_archives[0]
           if archive is None and len(source_archives) > 1:
-              print('::error::Multiple 0.2.1 source ZIPs found. Keep one, or name the desired one OBSBridge-source-0.2.1.zip at repository root.')
+              print('::error::Multiple 0.2.1 source ZIPs found. Keep one, or name the desired one OBSBridge-source-0.2.1-lf-fix.zip at repository root.')
               print('Source ZIPs:', [str(path.relative_to(root)) for path in source_archives])
               raise SystemExit(1)
           if archive is not None:
@@ -126,6 +126,17 @@ jobs:
           if 'Version: 0.2.1' not in (source / 'control').read_text(encoding='utf-8'):
               print('::error::Source version is not 0.2.1. Upload the new volume-shortcut source.')
               raise SystemExit(1)
+          # Normalize metadata before host checks and Theos packaging. Git settings
+          # or Windows editors may otherwise turn LF back into CRLF.
+          for name in ('control', 'Makefile', 'prefs/Makefile', 'scripts/build_ffmpeg.sh'):
+              path = source / name
+              raw = path.read_bytes()
+              normalized = raw.removeprefix(b'\xef\xbb\xbf').replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+              if not normalized.endswith(b'\n'):
+                  normalized += b'\n'
+              if normalized != raw:
+                  path.write_bytes(normalized)
+                  print('Normalized Unix LF:', name)
           directory = source.relative_to(root).as_posix()
           print('Source directory:', directory)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
